@@ -79,6 +79,50 @@ func cargadgetd_app_music_resume() { app.resume() }
 //export cargadgetd_app_music_stop
 func cargadgetd_app_music_stop() { app.shutdown() }
 
+type nowHold struct {
+	title, artist, album, app *C.char
+	png                       []byte
+}
+
+var heldNow nowHold
+
+func holdCString(dst **C.char, s string) *C.char {
+	if *dst != nil {
+		C.free(unsafe.Pointer(*dst))
+		*dst = nil
+	}
+	if s == "" {
+		return nil
+	}
+	*dst = C.CString(s)
+	return *dst
+}
+
+//export cargadgetd_app_music_nowplaying
+func cargadgetd_app_music_nowplaying(out *C.struct_cargadgetd_nowplaying) C.int {
+	if out == nil {
+		return 0
+	}
+	*out = C.struct_cargadgetd_nowplaying{}
+	tr, ok := app.nowPlaying()
+	if !ok {
+		return 0
+	}
+	out.title = holdCString(&heldNow.title, tr.Title)
+	out.artist = holdCString(&heldNow.artist, tr.Artist)
+	out.album = holdCString(&heldNow.album, tr.Album)
+	out.app = holdCString(&heldNow.app, tr.App)
+	out.state = C.int(tr.State)
+	out.duration_seconds = C.int(tr.Duration)
+	out.position_seconds = C.int(tr.Position)
+	heldNow.png = append(heldNow.png[:0], tr.PNG...)
+	if len(heldNow.png) > 0 {
+		out.art_png = (*C.uint8_t)(unsafe.Pointer(&heldNow.png[0]))
+		out.art_len = C.int(len(heldNow.png))
+	}
+	return 1
+}
+
 //export cargadgetd_app_music_name
 func cargadgetd_app_music_name() *C.char { return musicName }
 

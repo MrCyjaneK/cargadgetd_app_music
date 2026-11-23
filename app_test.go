@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -284,6 +287,47 @@ func absPos(o fyne.CanvasObject, target fyne.CanvasObject, acc fyne.Position) (f
 		}
 	}
 	return fyne.Position{}, false
+}
+
+func TestNowPlayingSnapshot(t *testing.T) {
+	c := newCard()
+	c.mu.Lock()
+	c.src = idleSource{}
+	c.mu.Unlock()
+	if _, ok := c.nowPlaying(); ok {
+		t.Fatal("idle snapshot is not a track")
+	}
+
+	img := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	img.Set(0, 0, color.NRGBA{R: 255, A: 255})
+	c.mu.Lock()
+	c.src = &recSource{tr: player.Track{
+		Title: "Night", Artist: "fakemink", Album: "LP", Status: "Playing",
+		LengthUs: 180_000_000, PositionUs: 12_000_000, Art: img,
+	}}
+	c.mu.Unlock()
+	got, ok := c.nowPlaying()
+	if !ok {
+		t.Fatal("playing snapshot")
+	}
+	if got.Title != "Night" || got.Artist != "fakemink" || got.Album != "LP" || got.App != "Music" {
+		t.Fatalf("%+v", got)
+	}
+	if got.State != 2 || got.Duration != 180 || got.Position != 12 {
+		t.Fatalf("state/time %+v", got)
+	}
+	if !bytes.HasPrefix(got.PNG, []byte{0x89, 'P', 'N', 'G'}) {
+		t.Fatalf("png %x", got.PNG)
+	}
+
+	wide := image.NewNRGBA(image.Rect(0, 0, 400, 100))
+	decoded, err := png.Decode(bytes.NewReader(encodeCover(wide)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Bounds().Dx() > coverMax || decoded.Bounds().Dy() > coverMax {
+		t.Fatalf("cover %v", decoded.Bounds())
+	}
 }
 
 func findButton(root fyne.CanvasObject, text string) *widget.Button {

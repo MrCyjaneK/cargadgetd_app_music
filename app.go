@@ -47,6 +47,8 @@ type card struct {
 	coverArt *canvas.Image
 	pauseBtn *widget.Button
 	art      image.Image
+	coverSrc image.Image
+	coverPNG []byte
 	status   string
 	shownID  string
 	queue    []player.QueueTrack
